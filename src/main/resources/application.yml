@@ -1,0 +1,9 @@
+# Default configuration for Langfuse OTLP exporter
+# Langfuse only supports traces, so we disable metrics and logs exporters
+# to avoid connection errors to localhost:4318
+
+otel:
+  metrics:
+    exporter: none
+  logs:
+    exporter: none
