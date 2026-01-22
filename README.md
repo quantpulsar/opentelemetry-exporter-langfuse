@@ -1,18 +1,26 @@
-# OpenTelemetry Exporter Langfuse
+# OpenTelemetry Langfuse Exporter
 
-OpenTelemetry OTLP exporter for [Langfuse](https://langfuse.com), designed to work with [embabel-agent-observability](https://github.com/embabel/embabel-agent-observability).
+[![Java](https://img.shields.io/badge/Java-21+-blue.svg)](https://openjdk.java.net/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5+-green.svg)](https://spring.io/projects/spring-boot)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-## Features
+A Spring Boot auto-configured [OpenTelemetry](https://opentelemetry.io/) span exporter for [Langfuse](https://langfuse.com/) - the open-source LLM engineering platform.
 
-- **Complete OpenTelemetry SDK**: Provides a fully configured `OpenTelemetry` bean
-- **OTLP HTTP export**: Uses OpenTelemetry's OTLP HTTP exporter for Langfuse
-- **Automatic authentication**: HTTP Basic Auth with public/secret keys
-- **Spring Boot auto-configuration**: Zero-code setup with configuration properties
-- **Works with any Spring AI/Embabel tracing**: No ordering issues with core observability
+## Overview
 
-## Quick Start
+This module provides `LangfuseSpanExporter`, an implementation of the `io.opentelemetry.sdk.trace.export.SpanExporter` interface that sends traces to Langfuse via the OTLP HTTP protocol.
 
-### 1. Add Dependencies
+**Key Features:**
+- Spring Boot auto-configuration with zero-code setup
+- HTTP Basic authentication with Langfuse API keys
+- Automatic span enrichment with Langfuse observation types
+- Compatible with Spring AI and other OpenTelemetry instrumented libraries
+
+## Installation
+
+This exporter is designed to work with [embabel-agent-observability](https://github.com/embabel/embabel-agent). Add both dependencies to your project:
+
+### Maven
 
 ```xml
 <dependency>
@@ -21,119 +29,104 @@ OpenTelemetry OTLP exporter for [Langfuse](https://langfuse.com), designed to wo
     <version>0.3.2-SNAPSHOT</version>
 </dependency>
 <dependency>
-    <groupId>com.embabel.agent</groupId>
+    <groupId>com.quantpulsar</groupId>
     <artifactId>opentelemetry-exporter-langfuse</artifactId>
     <version>0.3.2-SNAPSHOT</version>
 </dependency>
 ```
 
-### 2. Configure
+### Gradle
+
+```groovy
+implementation 'com.embabel.agent:embabel-agent-observability:0.3.2-SNAPSHOT'
+implementation 'com.quantpulsar:opentelemetry-exporter-langfuse:0.3.2-SNAPSHOT'
+```
+
+## Configuration
+
+Add the following properties to your `application.yml`:
 
 ```yaml
 management:
   langfuse:
     enabled: true
     endpoint: https://cloud.langfuse.com/api/public/otel
-    public-key: pk-lf-your-public-key
-    secret-key: sk-lf-your-secret-key
-    service-name: my-agent-app
+    public-key: ${LANGFUSE_PUBLIC_KEY}
+    secret-key: ${LANGFUSE_SECRET_KEY}
 ```
 
-## Configuration Properties
+### Configuration Properties
 
 | Property | Default | Description |
-|----------|---------|-------------|
-| `management.langfuse.enabled` | `true` | Enable/disable Langfuse exporter |
-| `management.langfuse.endpoint` | `https://cloud.langfuse.com/api/public/otel` | Langfuse OTLP endpoint (base URL) |
+| -------- | ------- | ----------- |
+| `management.langfuse.enabled` | `true` | Enable/disable the exporter |
+| `management.langfuse.endpoint` | `https://cloud.langfuse.com/api/public/otel` | Langfuse OTLP endpoint |
 | `management.langfuse.public-key` | - | Langfuse public key (required) |
 | `management.langfuse.secret-key` | - | Langfuse secret key (required) |
-| `management.langfuse.service-name` | `embabel-agent` | Service name in traces |
-| `management.langfuse.connect-timeout-ms` | `10000` | Connection timeout in milliseconds |
-| `management.langfuse.export-timeout-ms` | `30000` | Export timeout in milliseconds |
+| `management.langfuse.service-name` | `embabel-agent` | Service name for traces |
+| `management.langfuse.connect-timeout-ms` | `10000` | Connection timeout (ms) |
+| `management.langfuse.export-timeout-ms` | `30000` | Export timeout (ms) |
 
-Note: The `/v1/traces` suffix is automatically appended to the endpoint.
-
-## Langfuse Endpoints
+### Langfuse Endpoints
 
 | Environment | Endpoint |
-|-------------|----------|
+| ----------- | -------- |
+| Cloud (EU) | `https://cloud.langfuse.com/api/public/otel` |
+| Cloud (US) | `https://us.cloud.langfuse.com/api/public/otel` |
 | Self-hosted | `http://localhost:3000/api/public/otel` |
-| Langfuse Cloud (US) | `https://cloud.langfuse.com/api/public/otel` |
-| Langfuse Cloud (EU) | `https://eu.cloud.langfuse.com/api/public/otel` |
+
+> **Note:** The `/v1/traces` suffix is automatically appended to the endpoint.
 
 ## Authentication
 
 Langfuse uses HTTP Basic Authentication:
-- **Username**: Public key (`pk-lf-xxx`)
-- **Password**: Secret key (`sk-lf-xxx`)
+- **Username**: Public key (`pk-lf-...`)
+- **Password**: Secret key (`sk-lf-...`)
 
-The exporter automatically handles the Base64 encoding of credentials.
+The exporter handles Base64 encoding of credentials automatically.
 
-## How It Works
+## Span Enrichment
 
-This exporter creates a complete `OpenTelemetry` bean that:
+The exporter automatically enriches spans with `langfuse.observation.type` attribute based on span attributes:
 
-1. **Configures the SDK**: Sets up `SdkTracerProvider` with service name
-2. **Creates OTLP exporter**: Configures `OtlpHttpSpanExporter` for Langfuse
-3. **Sets up batch processing**: Uses `BatchSpanProcessor` for efficient export
-4. **Registers globally**: Calls `buildAndRegisterGlobal()` for context propagation
+| Source Attribute | Langfuse Type |
+| ---------------- | ------------- |
+| `embabel.agent.name` | `agent` |
+| `embabel.tool.name` | `tool` |
+| `embabel.action.short_name` | `chain` |
+| `embabel.embedding.name` | `embedding` |
+| `embabel.retriever.name` | `retriever` |
+| `gen_ai.operation.name=chat` | `generation` |
+| Default | `span` |
 
-The core observability module (`embabel-agent-observability`) uses `SmartInitializingSingleton` to resolve this bean after all beans are created, ensuring no ordering issues.
+## Usage
 
-## Multi-Backend Support
-
-You can use Langfuse alongside other exporters. The core module will use whichever `OpenTelemetry` bean is available:
-
-```yaml
-management:
-  langfuse:
-    enabled: true
-    endpoint: https://cloud.langfuse.com/api/public/otel
-    public-key: pk-lf-xxx
-    secret-key: sk-lf-xxx
-    service-name: my-agent-app
-```
-
-For multiple backends simultaneously, you would need to configure a custom `OpenTelemetry` bean with multiple span processors.
-
-## Trace Structure in Langfuse
-
-With proper configuration, you'll see hierarchical traces in Langfuse:
-
-```
-MyAgent (trace root)
-+-- planning:ready
-+-- planning:formulated
-+-- processData (action)
-|   +-- gen_ai.client.operation (LLM call)
-+-- analyzeResults (action)
-|   +-- gen_ai.client.operation (LLM call)
-|   +-- tool:searchDatabase
-+-- goal:AnalyzedData
-```
-
-## Langfuse-Specific Attributes
-
-The exporter adds Langfuse-compatible attributes:
-- `langfuse.span.name`: Display name in Langfuse UI
-- `langfuse.trace.name`: Trace name for grouping
-- `langfuse.observation.type`: Type (agent, span, event, tool)
-- `langfuse.level`: Log level (WARNING for replanning, stuck states)
-- `input.value` / `output.value`: Input/output for Langfuse display
-
-## Building
-
-```bash
-mvn clean package
-
-mvn clean package -DskipTests
-```
+No code required. Simply add the dependency and configure the properties. The exporter is auto-configured by Spring Boot and will automatically export spans to Langfuse.
 
 ## Requirements
 
 - Java 21+
 - Spring Boot 3.5+
-- embabel-agent-observability 0.3.2+
+- Langfuse v3.22.0+ (for self-hosted)
+
+## Building
+
+```bash
+# Build
+mvn clean package
+
+# Build without tests
+mvn clean package -DskipTests
+
+# Run tests
+mvn test
+```
+
+## Related Projects
+
+- [OpenTelemetry Java SDK](https://github.com/open-telemetry/opentelemetry-java)
+- [Langfuse Documentation](https://langfuse.com/docs)
+- [Langfuse OpenTelemetry Integration](https://langfuse.com/docs/integrations/opentelemetry)
 
 ## License
 

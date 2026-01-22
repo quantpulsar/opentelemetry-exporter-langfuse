@@ -1,4 +1,4 @@
-package com.embabel.agent.observability.langfuse;
+package com.quantpulsar.opentelemetry.langfuse;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;

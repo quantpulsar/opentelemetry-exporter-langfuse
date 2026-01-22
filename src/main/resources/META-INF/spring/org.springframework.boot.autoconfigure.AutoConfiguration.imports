@@ -1,1 +1,1 @@
-com.embabel.agent.observability.langfuse.LangfuseExporterAutoConfiguration
+com.quantpulsar.opentelemetry.langfuse.LangfuseExporterAutoConfiguration

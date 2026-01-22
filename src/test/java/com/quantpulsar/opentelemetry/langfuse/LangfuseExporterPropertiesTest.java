@@ -1,4 +1,4 @@
-package com.embabel.agent.observability.langfuse;
+package com.quantpulsar.opentelemetry.langfuse;
 
 import org.junit.jupiter.api.Test;
 

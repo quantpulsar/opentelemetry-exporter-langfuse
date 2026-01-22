@@ -1,4 +1,4 @@
-package com.embabel.agent.observability.langfuse;
+package com.quantpulsar.opentelemetry.langfuse;
 
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.junit.jupiter.api.Test;
