@@ -39,13 +39,13 @@ implementation 'com.quantpulsar:opentelemetry-exporter-langfuse:0.4.0'
 
 ### With Embabel Agent
 
-If using [embabel-agent-observability](https://github.com/embabel/embabel-agent), add both dependencies:
+If using [Embabel Agent](https://github.com/embabel/embabel-agent), add both dependencies:
 
 ```xml
 <dependency>
     <groupId>com.embabel.agent</groupId>
-    <artifactId>embabel-agent-observability</artifactId>
-    <version>0.3.2-SNAPSHOT</version>
+    <artifactId>embabel-agent-starter-observability</artifactId>
+    <version>0.3.4-SNAPSHOT</version>
 </dependency>
 <dependency>
     <groupId>com.quantpulsar</groupId>
