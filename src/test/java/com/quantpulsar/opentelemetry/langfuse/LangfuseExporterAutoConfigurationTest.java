@@ -1,5 +1,7 @@
 package com.quantpulsar.opentelemetry.langfuse;
 
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -84,6 +86,48 @@ class LangfuseExporterAutoConfigurationTest {
                     assertThat(context).hasSingleBean(LangfuseExporterProperties.class);
                     LangfuseExporterProperties props = context.getBean(LangfuseExporterProperties.class);
                     assertThat(props.getServiceName()).isEqualTo("my-custom-service");
+                });
+    }
+
+    @Test
+    void autoConfiguration_createsOpenTelemetryBean_whenFullyConfigured() {
+        contextRunner
+                .withPropertyValues(
+                        "management.langfuse.public-key=pk-lf-test",
+                        "management.langfuse.secret-key=sk-lf-test"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(OpenTelemetry.class);
+                    OpenTelemetry otel = context.getBean(OpenTelemetry.class);
+                    assertThat(otel).isInstanceOf(OpenTelemetrySdk.class);
+                });
+    }
+
+    @Test
+    void autoConfiguration_returnsNoopOpenTelemetry_whenNotConfigured() {
+        contextRunner
+                .run(context -> {
+                    // SpanExporter returns null when not configured, so OpenTelemetry
+                    // bean falls back to noop
+                    assertThat(context).hasSingleBean(OpenTelemetry.class);
+                    OpenTelemetry otel = context.getBean(OpenTelemetry.class);
+                    assertThat(otel).isSameAs(OpenTelemetry.noop());
+                });
+    }
+
+    @Test
+    void autoConfiguration_doesNotOverrideExistingOpenTelemetryBean() {
+        OpenTelemetry customOtel = OpenTelemetry.noop();
+
+        contextRunner
+                .withBean(OpenTelemetry.class, () -> customOtel)
+                .withPropertyValues(
+                        "management.langfuse.public-key=pk-lf-test",
+                        "management.langfuse.secret-key=sk-lf-test"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(OpenTelemetry.class);
+                    assertThat(context.getBean(OpenTelemetry.class)).isSameAs(customOtel);
                 });
     }
 

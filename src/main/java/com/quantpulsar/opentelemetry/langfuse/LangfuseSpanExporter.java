@@ -7,16 +7,24 @@ import io.opentelemetry.sdk.trace.data.DelegatingSpanData;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Wrapper SpanExporter that enriches spans with Langfuse observation types at export time.
+ * When {@code embabelOnly} is enabled, only spans with Embabel or GenAI attributes are exported.
  *
  * Langfuse types: agent, generation, tool, chain, retriever, embedding, evaluator, guardrail, event, span
  */
 public class LangfuseSpanExporter implements SpanExporter {
 
+    private static final Logger log = LoggerFactory.getLogger(LangfuseSpanExporter.class);
+
     private final SpanExporter delegate;
+    private final boolean embabelOnly;
 
     // Langfuse
     private static final AttributeKey<String> LANGFUSE_TYPE = AttributeKey.stringKey("langfuse.observation.type");
@@ -40,13 +48,69 @@ public class LangfuseSpanExporter implements SpanExporter {
     private static final AttributeKey<String> GEN_AI_OPERATION = AttributeKey.stringKey("gen_ai.operation.name");
     private static final AttributeKey<String> GEN_AI_SYSTEM = AttributeKey.stringKey("gen_ai.system");
 
-    public LangfuseSpanExporter(SpanExporter delegate) {
+    /**
+     * Creates a new LangfuseSpanExporter wrapping the given delegate exporter.
+     *
+     * @param delegate the underlying SpanExporter to delegate to after enrichment
+     * @param embabelOnly when true, only export spans with Embabel or GenAI attributes
+     */
+    public LangfuseSpanExporter(SpanExporter delegate, boolean embabelOnly) {
         this.delegate = delegate;
+        this.embabelOnly = embabelOnly;
+        if (embabelOnly) {
+            log.info("Langfuse: embabel-only mode enabled, non-Embabel spans will be filtered out");
+        }
     }
 
     @Override
     public CompletableResultCode export(Collection<SpanData> spans) {
-        return delegate.export(spans.stream().map(this::enrich).toList());
+        List<SpanData> toExport;
+        if (embabelOnly) {
+            toExport = spans.stream()
+                    .filter(this::isEmbabelOrGenAiSpan)
+                    .map(this::enrich)
+                    .toList();
+            if (toExport.isEmpty()) {
+                return CompletableResultCode.ofSuccess();
+            }
+        } else {
+            toExport = spans.stream().map(this::enrich).toList();
+        }
+        return delegate.export(toExport);
+    }
+
+    /**
+     * Checks if a span has Embabel or GenAI attributes.
+     */
+    private boolean isEmbabelOrGenAiSpan(SpanData span) {
+        Attributes attrs = span.getAttributes();
+
+        // Already tagged for Langfuse
+        if (attrs.get(LANGFUSE_TYPE) != null) {
+            return true;
+        }
+
+        // Embabel attributes
+        if (attrs.get(EMBABEL_EVENT_TYPE) != null
+                || attrs.get(EMBABEL_AGENT_NAME) != null
+                || attrs.get(EMBABEL_TOOL_NAME) != null
+                || attrs.get(EMBABEL_ACTION_SHORT_NAME) != null
+                || attrs.get(EMBABEL_GOAL_SHORT_NAME) != null
+                || attrs.get(EMBABEL_STATE_TO) != null
+                || attrs.get(EMBABEL_LIFECYCLE_STATE) != null
+                || attrs.get(EMBABEL_EMBEDDING_NAME) != null
+                || attrs.get(EMBABEL_RETRIEVER_NAME) != null
+                || attrs.get(EMBABEL_EVALUATOR_NAME) != null
+                || attrs.get(EMBABEL_GUARDRAIL_NAME) != null) {
+            return true;
+        }
+
+        // GenAI spans (LLM calls)
+        if (attrs.get(GEN_AI_OPERATION) != null || attrs.get(GEN_AI_SYSTEM) != null) {
+            return true;
+        }
+
+        return false;
     }
 
     private SpanData enrich(SpanData span) {

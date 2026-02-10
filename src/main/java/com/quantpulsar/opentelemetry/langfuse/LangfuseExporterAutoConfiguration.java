@@ -1,9 +1,18 @@
 package com.quantpulsar.opentelemetry.langfuse;
 
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import io.opentelemetry.semconv.ResourceAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -50,6 +59,13 @@ import java.util.Base64;
 @ConditionalOnProperty(prefix = "management.langfuse", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class LangfuseExporterAutoConfiguration {
 
+    /**
+     * Default constructor.
+     */
+    public LangfuseExporterAutoConfiguration() {
+        // Default constructor for Spring auto-configuration
+    }
+
     private static final Logger log = LoggerFactory.getLogger(LangfuseExporterAutoConfiguration.class);
 
     /**
@@ -90,7 +106,46 @@ public class LangfuseExporterAutoConfiguration {
         log.info("Langfuse: SpanExporter configured to send traces to {} (service: {})",
                 properties.getEndpoint(), properties.getServiceName());
 
-        return new LangfuseSpanExporter(otlpExporter);
+        return new LangfuseSpanExporter(otlpExporter, properties.isEmbabelOnly());
+    }
+
+    /**
+     * Creates an {@link OpenTelemetry} bean backed by the Langfuse {@link SpanExporter}.
+     *
+     * <p>This bean enables the Spring Boot Actuator + Micrometer Tracing auto-configuration
+     * chain: {@code OpenTelemetry} → {@code OtelTracer} → {@code Micrometer Tracer} →
+     * {@code ObservationRegistry}, which allows Embabel to select
+     * {@code EmbabelFullObservationEventListener}.
+     *
+     * @param langfuseSpanExporter the Langfuse span exporter
+     * @param properties Langfuse configuration properties
+     * @return configured OpenTelemetry SDK instance
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public OpenTelemetry openTelemetry(
+            @Qualifier("langfuseSpanExporter") SpanExporter langfuseSpanExporter,
+            LangfuseExporterProperties properties) {
+
+        if (langfuseSpanExporter == null) {
+            log.debug("Langfuse: SpanExporter is null (not configured), skipping OpenTelemetry bean creation");
+            return OpenTelemetry.noop();
+        }
+
+        Resource resource = Resource.getDefault().merge(
+                Resource.builder()
+                        .put(ResourceAttributes.SERVICE_NAME, properties.getServiceName())
+                        .build());
+
+        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+                .addSpanProcessor(BatchSpanProcessor.builder(langfuseSpanExporter).build())
+                .setResource(resource)
+                .build();
+
+        return OpenTelemetrySdk.builder()
+                .setTracerProvider(tracerProvider)
+                .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+                .build();
     }
 
     /**

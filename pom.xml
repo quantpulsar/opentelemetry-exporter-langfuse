@@ -6,11 +6,36 @@
 
         <groupId>com.quantpulsar</groupId>
     <artifactId>opentelemetry-exporter-langfuse</artifactId>
-    <version>0.3.2-SNAPSHOT</version>
+    <version>0.4.0</version>
     <packaging>jar</packaging>
 
     <name>OpenTelemetry Exporter Langfuse</name>
     <description>Langfuse OTLP exporter for Embabel Agent observability</description>
+    <url>https://github.com/quantpulsar/opentelemetry-exporter-langfuse</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>azanux</id>
+            <name>Charles</name>
+            <email>azanux@gmail.com</email>
+            <organization>QuantPulsar</organization>
+            <organizationUrl>https://github.com/quantpulsar</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/quantpulsar/opentelemetry-exporter-langfuse.git</connection>
+        <developerConnection>scm:git:ssh://github.com:quantpulsar/opentelemetry-exporter-langfuse.git</developerConnection>
+        <url>https://github.com/quantpulsar/opentelemetry-exporter-langfuse</url>
+    </scm>
 
     <properties>
         <java.version>21</java.version>
@@ -20,7 +45,6 @@
 
         <spring-boot.version>3.5.9</spring-boot.version>
         <opentelemetry.version>2.17.0</opentelemetry.version>
-        <embabel-observability.version>0.3.2-SNAPSHOT</embabel-observability.version>
     </properties>
 
     <dependencyManagement>
@@ -43,11 +67,10 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Core observability module -->
+        <!-- Logging -->
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-observability</artifactId>
-            <version>${embabel-observability.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
         </dependency>
 
         <!-- Spring Boot Auto-configuration -->
@@ -71,6 +94,18 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Actuator: provides ObservationRegistry -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Micrometer OTel bridge: creates Micrometer Tracer backed by OTel -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
         </dependency>
 
         <!-- OpenTelemetry Semantic Conventions -->
@@ -138,5 +173,39 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.6.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
